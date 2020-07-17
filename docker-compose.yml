@@ -1,0 +1,56 @@
+version: '3'
+
+volumes:
+  auth-mysql-data:
+    driver: local
+  auth-redis-data:
+    driver: local
+
+services:
+  auth-mysql:
+    build: ./docker/mysql
+    container_name: auth-mysql
+    volumes:
+      - auth-mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=auth
+      - MYSQL_DATABASE=auth
+      - MYSQL_USER=auth
+      - MYSQL_PASSWORD=auth
+
+  auth-api:
+    build: ./docker/api
+    container_name: auth-api
+    networks:
+      default:
+        aliases:
+          - local.auth
+          - staging.auth
+    volumes:
+      - ./api:/var/www/app
+    ports:
+      - "8080:8080"
+    links:
+      - auth-mysql
+      - auth-redis
+
+  auth-redis:
+    build: ./docker/redis
+    container_name: auth-redis
+    command: --appendonly yes
+    volumes:
+      - auth-redis-data:/data
+    ports:
+      - "6379:6379"
+
+  auth-queue:
+    build: ./docker/queue
+    container_name: auth-queue
+    command: php artisan queue:work --tries=1
+    volumes:
+      - ./api:/var/www/app
+    links:
+      - auth-mysql
+      - auth-redis
